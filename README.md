@@ -11,10 +11,10 @@ Build Instructions
    Copy this folder (e.g., `CellHUDMod`) into your game’s root folder
 2. **Open a terminal in the mod folder**  
 3. **Build the mod**
-   dotnet build -c Release
+   `dotnet build -c Release`
 4. **Locate the compiled mod**  
    The .dll file will be generated at:
-   CellHUDMod/bin/Release/netstandard2.1/CellHUDMod.dll
+   `CellHUDMod/bin/Release/netstandard2.1/CellHUDMod.dll`
 5. **Install the mod**
-   Copy CellHUDMod.dll into your BepInEx plugins folder:
-   Substrate Emergence/BepInEx/plugins/CellHUDMod/CellHUDMod.dll
+   Copy `CellHUDMod.dll` into your BepInEx plugins folder:
+   `Substrate-Emergence/BepInEx/plugins/CellHUDMod/CellHUDMod.dll`
