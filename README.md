@@ -5,7 +5,7 @@
 
 **Build Instructions**
 
-1. *Place your mod folder inside the game directory*
+1. *Place your mod folder inside the game directory*\n
    Copy this folder (e.g., `CellHUDMod`) into your game’s root folder
 3. *Open a terminal in the mod folder*
 4. *Build the mod*
