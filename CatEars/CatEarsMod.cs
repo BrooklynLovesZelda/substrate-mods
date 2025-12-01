@@ -3,9 +3,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
 
-namespace CuteCellsMod
+namespace CatEarsMod
 {
-    [BepInPlugin("com.cutecells.mod", "Cat Ears Mod", "1.0.0")]
+    [BepInPlugin("com.catears.mod", "Cat Ears Mod", "1.0.0")]
     public class CuteCellsPlugin : BaseUnityPlugin
     {
         private CatEarManager earManager;
