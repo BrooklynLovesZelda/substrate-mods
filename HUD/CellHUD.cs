@@ -5,234 +5,213 @@ using System.Text;
 
 namespace CellHUDMod
 {
-    [BepInPlugin("com.cellhud.mod", "Cell Info HUD", "1.0.0")]
+    [BepInPlugin("com.cellhud.mod", "Cell Info HUD", "1.1.0")]
     public class CellHUDPlugin : BaseUnityPlugin
     {
         private CellInfoHUD hud;
 
         private void Awake()
         {
-            Logger.LogInfo("Cell Info HUD v1.0.0");
-            Logger.LogInfo("Press H to toggle HUD");
+            Logger.LogInfo("Cell Info HUD v1.1.0 loaded - Press H to toggle");
         }
 
         private void Start()
         {
-            var obj = new GameObject("CellInfoHUD");
-            hud = obj.AddComponent<CellInfoHUD>();
-            DontDestroyOnLoad(obj);
+            var go = new GameObject("CellInfoHUD");
+            hud = go.AddComponent<CellInfoHUD>();
+            DontDestroyOnLoad(go);
         }
 
         private void Update()
         {
             if (hud == null) return;
-
-            if (Keyboard.current.hKey.wasPressedThisFrame)
-            {
-                hud.Toggle();
-            }
-
-            if (Mouse.current.leftButton.wasReleasedThisFrame)
-            {
-                hud.SelectAtMouse();
-            }
+            if (Keyboard.current.hKey.wasPressedThisFrame) hud.Toggle();
+            if (Mouse.current.leftButton.wasReleasedThisFrame) hud.SelectAtMouse();
         }
     }
 
     public class CellInfoHUD : MonoBehaviour
     {
-        public bool visible = true;
-        private GUIStyle labelStyle, boxStyle, headerStyle;
-        private Texture2D bgTex;
+        private bool visible = true;
         private CellBody selected;
-        private int selectedCellIndex = 0;
-        private string ecoText = "", cellText = "";
-        private float cyto, cytoMax;
-        private readonly StringBuilder sb = new(200);
-        private float timer;
+        private int selectedIndex;
+
+        private GUIStyle label, header, box;
+        private Texture2D bg;
+        private StringBuilder sb = new StringBuilder(256);
+
+        private string ecoText = "";
+        private string cellText = "";
+        private float cytosolCurrent, cytosolMin, cytosolMax;
+        private float refreshTimer;
 
         private void Start()
         {
-            bgTex = new Texture2D(1, 1);
-            bgTex.SetPixel(0, 0, new Color(0, 0, 0, 0.75f));
-            bgTex.Apply();
+            bg = new Texture2D(1, 1);
+            bg.SetPixel(0, 0, new Color(0, 0, 0, 0.75f));
+            bg.Apply();
         }
 
         private void Update()
         {
-            timer += Time.deltaTime;
-            if (timer > 0.15f)
+            refreshTimer += Time.deltaTime;
+            if (refreshTimer > 0.15f)
             {
-                UpdateData();
-                timer = 0;
+                RefreshData();
+                refreshTimer = 0;
             }
         }
 
         private void OnGUI()
         {
             if (!visible) return;
-            InitStyles();
-
-            DrawEco();
-            if (selected != null)
-                DrawCell();
-            else
-                DrawHint();
+            EnsureStyles();
+            DrawEcosystemPanel();
+            DrawCellPanel();
         }
 
-        void InitStyles()
+        private void EnsureStyles()
         {
-            if (labelStyle == null)
+            if (label != null) return;
+
+            label = new GUIStyle(GUI.skin.label)
             {
-                labelStyle = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 13,
-                    richText = true,
-                    wordWrap = false,
-                    normal = { textColor = new Color(0.95f, 0.95f, 0.95f) }
-                };
-                headerStyle = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 15,
-                    fontStyle = FontStyle.Bold,
-                    richText = true,
-                    alignment = TextAnchor.MiddleCenter,
-                    normal = { textColor = new Color(0.3f, 1f, 0.8f) }
-                };
-                boxStyle = new GUIStyle(GUI.skin.box)
-                {
-                    normal = { background = bgTex }
-                };
-            }
-        }
-
-        void DrawEco()
-        {
-            float w = 200f;
-            float headerHeight = headerStyle.CalcSize(new GUIContent("ECOSYSTEM")).y + 4;
-            float textHeight = labelStyle.CalcHeight(new GUIContent(ecoText), w - 12);
-            float h = 12 + headerHeight + textHeight;
-
-            float x = 10f, y = 10f;
-
-            GUI.Box(new Rect(x, y, w, h), "", boxStyle);
-            GUI.Label(new Rect(x, y + 6, w, headerHeight), "ECOSYSTEM", headerStyle);
-            GUI.Label(new Rect(x + 6, y + 6 + headerHeight, w - 12, textHeight), ecoText, labelStyle);
-        }
-
-        void DrawCell()
-        {
-            var allCells = CellBody.AllCells;
-            int total = allCells != null ? allCells.Count : 0;
-            string headerText = $"CELL #{selectedCellIndex + 1} ({selectedCellIndex + 1}/{total})";
-
-            float w = 220f;
-            float headerHeight = headerStyle.CalcSize(new GUIContent(headerText)).y + 4;
-            float barHeight = 20f;
-            float textHeight = labelStyle.CalcHeight(new GUIContent(cellText), w - 12);
-            float h = 12 + headerHeight + barHeight + 4 + textHeight;
-
-            float x = 10f, y = Screen.height - h - 10f;
-
-            GUI.Box(new Rect(x, y, w, h), "", boxStyle);
-            GUI.Label(new Rect(x, y + 6, w, headerHeight), headerText, headerStyle);
-
-            DrawCytosolBar(x + 6, y + 6 + headerHeight, w - 12);
-            GUI.Label(new Rect(x + 6, y + 6 + headerHeight + barHeight + 4, w - 12, textHeight), cellText, labelStyle);
-        }
-
-        void DrawCytosolBar(float x, float y, float width)
-        {
-            float h = 16;
-            float fill = width * Mathf.Clamp01((cyto + 0.5f));
-
-            GUI.DrawTexture(new Rect(x, y, width, h), bgTex);
-            GUI.color = GetCytoColor(cyto);
-            GUI.DrawTexture(new Rect(x, y, fill, h), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-            GUI.Box(new Rect(x - 1, y - 1, width + 2, h + 2), "", GUI.skin.box);
-
-            string s = $"Cytosol: {cyto:F2} / {cytoMax:F2}";
-            var style = new GUIStyle(labelStyle)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontStyle = FontStyle.Bold,
-                fontSize = 12
+                fontSize = 13,
+                richText = true,
+                wordWrap = false,
+                normal = { textColor = new Color(0.95f, 0.95f, 0.95f) }
             };
-            float textH = style.CalcSize(new GUIContent(s)).y;
-            GUI.Label(new Rect(x, y + (h - textH) * 0.5f, width, textH), s, style);
+
+            header = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 15,
+                fontStyle = FontStyle.Bold,
+                richText = true,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = new Color(0.3f, 1f, 0.8f) }
+            };
+
+            box = new GUIStyle(GUI.skin.box) { normal = { background = bg } };
         }
 
-        void DrawHint()
+        private void DrawEcosystemPanel()
+        {
+            float w = 200, x = 10, y = 10;
+            float headerH = header.CalcSize(new GUIContent("ECOSYSTEM")).y + 4;
+            float textH = label.CalcHeight(new GUIContent(ecoText), w - 12);
+            float h = 12 + headerH + textH;
+
+            GUI.Box(new Rect(x, y, w, h), "", box);
+            GUI.Label(new Rect(x, y + 6, w, headerH), "ECOSYSTEM", header);
+            GUI.Label(new Rect(x + 6, y + 6 + headerH, w - 12, textH), ecoText, label);
+        }
+
+        private void DrawCellPanel()
+        {
+            float w = 220, x = 10;
+
+            if (selected == null)
+            {
+                DrawHint(x, w);
+                return;
+            }
+
+            var cells = CellBody.AllCells;
+            int total = cells?.Count ?? 0;
+            string title = $"CELL #{selectedIndex + 1} ({selectedIndex + 1}/{total})";
+
+            float headerH = header.CalcSize(new GUIContent(title)).y + 4;
+            float barH = 20;
+            float textH = label.CalcHeight(new GUIContent(cellText), w - 12);
+            float h = 12 + headerH + barH + 4 + textH;
+            float y = Screen.height - h - 10;
+
+            GUI.Box(new Rect(x, y, w, h), "", box);
+            GUI.Label(new Rect(x, y + 6, w, headerH), title, header);
+            DrawCytosolBar(x + 6, y + 6 + headerH, w - 12, barH - 4);
+            GUI.Label(new Rect(x + 6, y + 6 + headerH + barH + 4, w - 12, textH), cellText, label);
+        }
+
+        private void DrawHint(float x, float w)
         {
             string hint = "Click a cell to view info";
-            float w = 220f;
-            float h = labelStyle.CalcSize(new GUIContent(hint)).y + 20f;
-            float x = 10f, y = Screen.height - h - 10f;
+            float h = label.CalcSize(new GUIContent(hint)).y + 20;
+            float y = Screen.height - h - 10;
 
-            GUI.Box(new Rect(x, y, w, h), "", boxStyle);
-            var style = new GUIStyle(labelStyle)
+            var hintStyle = new GUIStyle(label)
             {
                 alignment = TextAnchor.MiddleCenter,
                 fontStyle = FontStyle.Italic,
                 fontSize = 12,
                 normal = { textColor = new Color(0.7f, 0.7f, 0.7f) }
             };
-            GUI.Label(new Rect(x, y + (h - style.CalcSize(new GUIContent(hint)).y) * 0.5f, w, style.CalcSize(new GUIContent(hint)).y), hint, style);
+
+            GUI.Box(new Rect(x, y, w, h), "", box);
+            GUI.Label(new Rect(x, y, w, h), hint, hintStyle);
         }
 
-        void UpdateData()
+        private void DrawCytosolBar(float x, float y, float w, float h)
+        {
+            float range = cytosolMax - cytosolMin;
+            if (range < 0.001f) range = 1f;
+            float fill = w * Mathf.Clamp01((cytosolCurrent - cytosolMin) / range);
+
+            GUI.DrawTexture(new Rect(x, y, w, h), bg);
+            GUI.color = GetCytosolColor(cytosolCurrent);
+            GUI.DrawTexture(new Rect(x, y, fill, h), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            GUI.Box(new Rect(x - 1, y - 1, w + 2, h + 2), "", GUI.skin.box);
+
+            var barLabel = new GUIStyle(label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = 11
+            };
+            GUI.Label(new Rect(x, y, w, h), $"Cytosol: {cytosolCurrent:F2} / {cytosolMax:F2}", barLabel);
+        }
+
+        private void RefreshData()
         {
             var cells = CellBody.AllCells;
-            int cellCount = cells != null ? cells.Count : 0;
-            int food = EnergyParticle.AliveCount;
+            int cellCount = cells?.Count ?? 0;
+            int foodCount = EnergyParticle.AliveCount;
 
             sb.Clear();
             sb.AppendLine($"Cells: <color=#00ff88>{cellCount}</color>");
-            sb.AppendLine($"Food: <color=#ffdd44>{food}</color>");
+            sb.Append($"Food: <color=#ffdd44>{foodCount}</color>");
             ecoText = sb.ToString();
 
-            if (cells == null || cells.Count == 0)
+            if (cellCount == 0)
             {
                 selected = null;
                 return;
             }
 
-            bool found = false;
             if (selected != null && selected.gameObject != null && selected.gameObject.activeInHierarchy)
             {
                 for (int i = 0; i < cells.Count; i++)
                 {
                     if (cells[i] == selected)
                     {
-                        selectedCellIndex = i;
-                        found = true;
+                        selectedIndex = i;
                         break;
                     }
                 }
             }
-
-            if (!found)
+            else
             {
                 selected = cells[0];
-                selectedCellIndex = 0;
+                selectedIndex = 0;
             }
 
-            cyto = selected.GetCytosolBuffer();
-            cytoMax = selected.GetEffectiveCytosolMaxBuffer();
+            cytosolCurrent = selected.GetCytosolBuffer();
+            cytosolMin = selected.GetCytosolMinBuffer();
+            cytosolMax = selected.GetEffectiveCytosolMaxBuffer();
 
             float radius = selected.GetRadius();
             float speed = selected.GetVelocity().magnitude;
-
-            string status;
-            if (cyto < -0.3f)
-                status = "<color=#ff4444>Starving</color>";
-            else if (cyto > 0.3f)
-                status = "<color=#44ff88>Thriving</color>";
-            else if (cyto > 0f)
-                status = "<color=#88ff88>Healthy</color>";
-            else
-                status = "<color=#ffaa44>Hungry</color>";
+            string status = GetStatusText(cytosolCurrent);
 
             sb.Clear();
             sb.AppendLine($"Radius: <color=#aaddff>{radius:F2}</color>");
@@ -241,10 +220,22 @@ namespace CellHUDMod
             cellText = sb.ToString();
         }
 
-        Color GetCytoColor(float v)
+        private string GetStatusText(float cyto)
         {
-            if (v < -0.3f) return new Color(1f, 0.3f, 0.3f);
-            if (v < 0f) return new Color(1f, 0.8f, 0.2f);
+            if (cyto < -0.3f) return "<color=#ff4444>Starving</color>";
+            if (cyto > 0.3f) return "<color=#44ff88>Thriving</color>";
+            if (cyto > 0f) return "<color=#88ff88>Healthy</color>";
+            return "<color=#ffaa44>Hungry</color>";
+        }
+
+        private Color GetCytosolColor(float v)
+        {
+            float range = cytosolMax - cytosolMin;
+            float normalized = range > 0.001f ? (v - cytosolMin) / range : 0.5f;
+            
+            if (normalized < 0.2f) return new Color(1f, 0.3f, 0.3f);
+            if (normalized < 0.4f) return new Color(1f, 0.8f, 0.2f);
+            if (normalized > 0.8f) return new Color(0.2f, 0.9f, 1f);
             return new Color(0.3f, 1f, 0.8f);
         }
 
@@ -255,58 +246,33 @@ namespace CellHUDMod
             var cam = Camera.main;
             if (cam == null) return;
 
-            var mp = Mouse.current.position.ReadValue();
-            var wp = cam.ScreenToWorldPoint(new Vector3(mp.x, mp.y, -cam.transform.position.z));
-            wp.z = 0;
+            var mousePos = Mouse.current.position.ReadValue();
+            var worldPos = cam.ScreenToWorldPoint(new Vector3(mousePos.x, mousePos.y, -cam.transform.position.z));
+            worldPos.z = 0;
 
-            var org = FindOrganelle(wp, 3f);
-            if (org != null)
+            var cells = CellBody.AllCells;
+            if (cells == null) return;
+
+            CellBody closest = null;
+            float closestDist = float.MaxValue;
+
+            foreach (var cell in cells)
             {
-                var cb = org.GetComponentInParent<CellBody>();
-                if (cb != null)
+                if (cell == null) continue;
+                float dist = Vector2.Distance(worldPos, cell.transform.position);
+                if (dist <= cell.GetRadius() * 1.2f && dist < closestDist)
                 {
-                    selected = cb;
-                    return;
+                    closestDist = dist;
+                    closest = cell;
                 }
             }
 
-            CellBody best = null;
-            float bestDist = float.MaxValue;
-            foreach (var c in CellBody.AllCells)
-            {
-                if (c == null) continue;
-                float d = Vector2.Distance(wp, c.transform.position);
-                if (d <= c.GetRadius() && d < bestDist)
-                {
-                    bestDist = d;
-                    best = c;
-                }
-            }
-
-            if (best != null) selected = best;
-        }
-
-        Organelle FindOrganelle(Vector3 pos, float r)
-        {
-            var all = Object.FindObjectsByType<Organelle>(FindObjectsSortMode.None);
-            Organelle closest = null;
-            float minDist = float.MaxValue;
-            foreach (var o in all)
-            {
-                if (o == null) continue;
-                float d = Vector2.Distance(pos, o.transform.position);
-                if (d < r && d < minDist)
-                {
-                    minDist = d;
-                    closest = o;
-                }
-            }
-            return closest;
+            if (closest != null) selected = closest;
         }
 
         private void OnDestroy()
         {
-            if (bgTex != null) Destroy(bgTex);
+            if (bg != null) Destroy(bg);
         }
     }
 }
