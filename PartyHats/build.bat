@@ -1,5 +1,5 @@
 @echo off
-dotnet build -c Release -v quiet
+dotnet build -c Release
 if errorlevel 1 (
     echo.
     echo Build failed!
@@ -7,12 +7,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
-set "SOURCE=bin\Release\netstandard2.1\PartyHatsMod.dll"
-set "DEST=..\BepInEx\plugins\PartyHatsMod.dll"
+set "SOURCE=bin\Release\netstandard2.1\PartyHats.dll"
+set "DEST=..\BepInEx\plugins\PartyHats.dll"
 
-if not exist "..\BepInEx\plugins\PartyHatsMod\" mkdir "..\BepInEx\plugins\PartyHatsMod.dll\"
+if not exist "..\BepInEx\plugins" mkdir "..\BepInEx\plugins"
 copy /Y "%SOURCE%" "%DEST%" >nul
 
 echo Copied to: %DEST%
-
 pause
